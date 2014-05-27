@@ -1,0 +1,57 @@
+#! /bin/bash
+
+# This script pushes entire local filesystem directories to an off-site FTP
+# server.
+
+SCRIPT_NAME=`basename $0`
+CONFIG_FILE_PATH="/etc/$SCRIPT_NAME"
+LOGGING_PATH="/var/log/$SCRIPT_NAME"
+REQUIRED_CONFIG_PARAMETERS=(PATHS FTP_USER FTP_HOST FTP_PASSPHRASE)
+LOGGING_TIMESTAMP_FORMAT="%Y-%m-%e %k:%M:%S"
+
+set -e  # Exit on first error
+set -u  # Do not use unset variables
+
+# Setup logging
+mkdir -p `dirname $LOGGING_PATH`
+echo "----------------------------------------------------" >> "$LOGGING_PATH" 
+
+log () {
+  echo `date +"$LOGGING_TIMESTAMP_FORMAT"` "$@" >> $LOGGING_PATH
+  echo "$@"
+}
+
+# Logs about the given error message and exits with a non-zero status
+fatal() {
+  log "**************************"
+  log "* FATAL: $@"
+  log "**************************"
+  exit 1
+}
+
+# Load the configuration parameters
+if [ ! -f "$CONFIG_FILE_PATH" ]; then
+  fatal "Could not find the configuration file $CONFIG_FILE_PATH"
+fi
+. "$CONFIG_FILE_PATH"
+
+# Make sure all the required configuration parameters are set
+for config_entry_name in ${REQUIRED_CONFIG_PARAMETERS[@]}; do
+  eval val="\${$config_entry_name:-}"
+  if [ -z "$val" ]; then
+    fatal "$config_entry_name configuration parameter is not set"
+  fi 
+done
+
+# Executes the given LFTP commands and write the output to stdout
+do_ftp() {
+	lftp -u $FTP_USER,$FTP_PASSPHRASE $FTP_HOST -e "$@ ;exit" 2>&1
+}
+
+for path in ${PATHS[@]}; do
+	log "Doing $path"
+	if [ ! -d "$path" ]; then
+		fatal "$path is not a directory path. It should be."
+	fi
+	log `do_ftp "mirror -Rc $path \`basename $path\`"`
+done
