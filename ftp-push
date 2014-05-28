@@ -53,5 +53,5 @@ for path in ${PATHS[@]}; do
 	if [ ! -d "$path" ]; then
 		fatal "$path is not a directory path. It should be."
 	fi
-	log `do_ftp "mirror -Rc $path \`basename $path\`"`
+	log lftp: `do_ftp "mirror -Rc $path \`basename $path\`"`
 done
